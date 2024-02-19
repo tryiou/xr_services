@@ -9,7 +9,7 @@ return cached pricing in 'usd', 'usd_24h_vol' and 'timestamp' for each token_id
 
 ```
 # xcloud service for existing exr service node setup;
-# install procedure:
+# INSTALL PROCEDURE:
 cd ~/exrproxy-env
 git clone https://github.com/tryiou/xr_services
 cd xr_services
