@@ -49,7 +49,7 @@ curl --location --request POST 'http://snode_url.org/xrs/cg_coins_list'
 
 
 # Retrieve coins ids data with:
-curl --location 'http://exrproxy1.airdns.org:42114/xrs/cg_coins_data' \
+curl --location 'http://snode_url.org/xrs/cg_coins_data' \
 --header 'Content-Type: application/json' \
 --data '[
     "blocknet",
