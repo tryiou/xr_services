@@ -19,7 +19,7 @@ pip3 install PyYAML
 python3 install_cg_proxy_xrs.py
 cd ~/exrproxy-env
 docker stop exrproxy-env-xr_proxy-1
-./deploy
+./deploy.sh
 ```
 
 ```
