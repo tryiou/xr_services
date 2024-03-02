@@ -3,12 +3,15 @@ import time
 import requests
 from aiohttp import web
 import json
+import logging
+import sys
 
 # Cache to store the fetched JSON data
 data_cache = {"cg_coins_list": {}, "cg_data": {}}
-
-import requests
-import time
+# Configure logging to output to the console
+logging.basicConfig(level=logging.DEBUG, stream=sys.stdout)
+# Set the log level for urllib3 to INFO
+logging.getLogger('urllib3').setLevel(logging.INFO)
 
 
 async def fetch_and_parse_json(url, max_retries=5):
@@ -20,17 +23,17 @@ async def fetch_and_parse_json(url, max_retries=5):
             data = response.json()
             return data
         except Exception as e:
-            print(f"Error fetching data: {e}")
+            logging.error(f"Error fetching data: {e}")
             retries += 1
             if retries <= max_retries:
-                print(f"Retrying in {30 * retries} seconds... (Attempt {retries}/{max_retries})")
+                logging.info(f"Retrying in {30 * retries} seconds... (Attempt {retries}/{max_retries})")
                 await asyncio.sleep(30 * retries)  # Wait for 20 seconds before retrying
-    print(f"Maximum number of retries ({max_retries}) reached. Unable to fetch data.")
+    logging.error(f"Maximum number of retries ({max_retries}) reached. Unable to fetch data.")
     return None
 
 
 async def update_coingecko_coins_list():
-    print("Starting update_coingecko_coins_list task...")
+    logging.info("Starting update_coingecko_coins_list task...")
     while True:
         try:
             # Fetch data from the CoinGecko API
@@ -38,14 +41,14 @@ async def update_coingecko_coins_list():
             data = await fetch_and_parse_json(url)
             timestamp = time.time()
             data_cache["cg_coins_list"] = {"data": data, "timestamp": timestamp}
-            print("cg_coins_list data updated")
+            logging.info("cg_coins_list data updated")
         except Exception as e:
-            print("Error updating cg_coins_list data:", e)
+            logging.error("Error updating cg_coins_list data:", e)
         await asyncio.sleep(60 * 60)
 
 
 async def update_coingecko_coins_tickers():
-    print("Starting update_coingecko_coins_tickers task...")
+    logging.info("Starting update_coingecko_coins_tickers task...")
     final_data = {}  # Initialize an empty dictionary to accumulate all response data
     while True:
         try:
@@ -70,26 +73,25 @@ async def update_coingecko_coins_tickers():
                     ids_string = ','.join(chunk_ids)
                     url = url_template.format(ids_string)
                     data = await fetch_and_parse_json(url)
-                    print(chunk_start_index, chunk_end_index, len(chunk_ids), len(coin_ids))
+                    # logging.info(chunk_start_index, chunk_end_index, len(chunk_ids), len(coin_ids))
                     # Update the final_data dictionary with the data from the current API call
                     timestamp = time.time()
                     for key in data:
                         data[key]["timestamp"] = timestamp
-                    print("updated data for :", chunk_ids)
+                    # logging.info("updated data for :", chunk_ids)
                     data_cache['cg_data'].update(data)
                     # Move to the next chunk
                     chunk_start_index = chunk_end_index + 1
                     await asyncio.sleep(15)
-                print(data_cache['cg_data'])
+                # logging.info(data_cache['cg_data'])
         except Exception as e:
-            print("Error updating cg_coins_tickers data:", e)
+            logging.error("Error updating cg_coins_tickers data:", e)
             await asyncio.sleep(15)
         else:
             await asyncio.sleep(15)
 
 
 async def cg_coins_list():
-    print("Request received for call_number1")
     if data_cache and "cg_coins_list" in data_cache:
         return {"success": True, "reply": data_cache['cg_coins_list']}
     else:
@@ -97,7 +99,6 @@ async def cg_coins_list():
 
 
 async def cg_coins_data(coins):
-    print("cg_coins_data", coins)
     if not isinstance(coins, list) or not all(isinstance(coin, str) for coin in coins):
         return {"success": False, "reply": "Invalid parameters: coins must be a list of strings"}
 
@@ -115,7 +116,7 @@ async def cg_coins_data(coins):
 
 
 async def start_server():
-    print("Starting JSON-RPC server...")
+    logging.info("Starting JSON-RPC server...")
     app = web.Application()
     app.router.add_post('/', handle_request)
     runner = web.AppRunner(app)
@@ -154,7 +155,7 @@ async def main():
 
 
 if __name__ == '__main__':
-    print("Starting main function...")
+    logging.info("Starting main function...")
     loop = asyncio.get_event_loop()
     loop.create_task(main())
     loop.run_forever()
