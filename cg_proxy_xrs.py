@@ -36,13 +36,13 @@ async def fetch_and_parse_json(url, max_retries=5):
 async def update_coingecko_coins_list():
     logging.info("Starting update_coingecko_coins_list task...")
     while True:
+        logging.info("update_coingecko_coins_list task...")
         try:
             # Fetch data from the CoinGecko API
             url = "https://api.coingecko.com/api/v3/coins/list"
             data = await fetch_and_parse_json(url)
             timestamp = time.time()
             data_cache["cg_coins_list"] = {"data": data, "timestamp": timestamp}
-            logging.info("cg_coins_list data updated")
         except Exception as e:
             logging.error("Error updating cg_coins_list data")
         await asyncio.sleep(60 * 60)
@@ -52,6 +52,7 @@ async def update_coingecko_coins_tickers():
     logging.info("Starting update_coingecko_coins_tickers task...")
     final_data = {}  # Initialize an empty dictionary to accumulate all response data
     while True:
+        logging.info("update_coingecko_coins_tickers task...")
         try:
             if data_cache and 'cg_coins_list' in data_cache:
                 coin_ids = [entry['id'] for entry in data_cache['cg_coins_list']['data']]
