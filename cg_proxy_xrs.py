@@ -12,6 +12,7 @@ data_cache = {"cg_coins_list": {}, "cg_data": {}}
 logging.basicConfig(level=logging.DEBUG, stream=sys.stdout)
 # Set the log level for urllib3 to INFO
 logging.getLogger('urllib3').setLevel(logging.INFO)
+logging.getLogger('aiohttp').setLevel(logging.INFO)
 
 
 async def fetch_and_parse_json(url, max_retries=5):
@@ -23,7 +24,7 @@ async def fetch_and_parse_json(url, max_retries=5):
             data = response.json()
             return data
         except Exception as e:
-            logging.error(f"Error fetching data: {e}")
+            logging.error(f"Error fetching data")
             retries += 1
             if retries <= max_retries:
                 logging.info(f"Retrying in {30 * retries} seconds... (Attempt {retries}/{max_retries})")
@@ -43,7 +44,7 @@ async def update_coingecko_coins_list():
             data_cache["cg_coins_list"] = {"data": data, "timestamp": timestamp}
             logging.info("cg_coins_list data updated")
         except Exception as e:
-            logging.error("Error updating cg_coins_list data:", e)
+            logging.error("Error updating cg_coins_list data")
         await asyncio.sleep(60 * 60)
 
 
@@ -127,9 +128,16 @@ async def start_server():
 
 async def handle_request(request):
     try:
+        # Logging the request IP
+        ip_address = request.remote
+
         request_data = await request.json()
         method_name = request_data.get('method') if 'method' in request_data else None
         params = request_data.get('params') if 'params' in request_data else None
+
+        # Logging the method and params
+        logging.info(f"Ip: {ip_address}, Method: {method_name}, Params: {params}")
+
         if method_name:
             if method_name == 'cg_coins_list':
                 result = await cg_coins_list()
@@ -142,6 +150,7 @@ async def handle_request(request):
         else:
             raise ValueError("Method not provided")
     except Exception as e:
+        logging.error(f"Error handling request from {ip_address}: {e}")
         return web.json_response({"success": False, "reply": str(e)}, status=400)
 
 
