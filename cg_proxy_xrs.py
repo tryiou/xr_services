@@ -128,14 +128,13 @@ async def start_server():
 
 async def handle_request(request):
     try:
-        # Logging the request IP
-        ip_address = request.remote
 
         request_data = await request.json()
         method_name = request_data.get('method') if 'method' in request_data else None
         params = request_data.get('params') if 'params' in request_data else None
 
         # Logging the method and params
+        ip_address = request.headers.get('X-Forwarded-For') or request.remote
         logging.info(f"Ip: {ip_address}, Method: {method_name}, Params: {params}")
 
         if method_name:
