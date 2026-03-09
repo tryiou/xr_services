@@ -22,6 +22,7 @@ from install_cg_proxy_xrs import (
     _find_plugins_line,
     _find_xrouter_section,
     _remove_plugin_files,
+    atomic_write,
     create_backup,
     find_latest_backup,
     find_oldest_backup,
@@ -87,6 +88,25 @@ def test_merge_plugins_preserves_order():
     current = ["x", "y", "z"]
     new, _ = merge_plugins(current, ["a", "b"])
     assert new == ["x", "y", "z", "a", "b"]
+
+
+def test_atomic_write_preserves_executable(tmp_path):
+    """Test atomic_write preserves executable bit on existing files."""
+    test_file = tmp_path / "executable_script.sh"
+    # Create file with initial content and set executable permissions
+    initial_content = "#!/bin/bash\necho 'hello'\n"
+    test_file.write_text(initial_content)
+    os.chmod(test_file, 0o755)
+    assert os.access(test_file, os.X_OK), "File should be executable before atomic_write"
+
+    # Use atomic_write to modify the file
+    new_content = ["#!/bin/bash\necho 'modified'\n"]
+    atomic_write(str(test_file), new_content)
+
+    # Verify file still exists, is executable, and contains new content
+    assert test_file.exists()
+    assert os.access(test_file, os.X_OK), "File should remain executable after atomic_write"
+    assert test_file.read_text() == "#!/bin/bash\necho 'modified'\n"
 
 
 # === Backup and Restore Tests ===

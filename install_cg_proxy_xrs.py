@@ -499,13 +499,30 @@ def uninstall(target_base: str) -> int:
 
 
 def atomic_write(path: str, lines: list[str]) -> None:
-    """Write to file atomically using temp file then rename."""
+    """Write to file atomically using temp file then rename, preserving permissions."""
     dir_name = os.path.dirname(path) or "."
+
+    # Preserve original file's mode if it exists
+    original_mode = None
+    if os.path.exists(path):
+        try:
+            original_mode = os.stat(path).st_mode
+        except OSError:
+            pass  # If we can't read mode, skip preservation
+
     with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=dir_name, delete=False) as tmp:
         tmp.writelines(lines)
         tmp.flush()
         os.fsync(tmp.fileno())
         temp_path = tmp.name
+
+    # Restore original mode to temp file before replace
+    if original_mode is not None:
+        try:
+            os.chmod(temp_path, original_mode)
+        except OSError:
+            pass  # If chmod fails, continue with replace (temp file will have default perms)
+
     os.replace(temp_path, path)
     logging.debug(f"Atomic write completed: {path}")
 
