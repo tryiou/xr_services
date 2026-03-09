@@ -1,0 +1,31 @@
+line-length = 150
+target-version = "py310"
+exclude = [
+    ".git",
+    ".venv",
+    "venv",
+    "generated",
+    "dist",
+    "build",
+    "__pycache__",
+    "*.egg-info",
+]
+
+[lint]
+select = [
+    "E", # pycodestyle errors (PEP8)
+    "F", # Pyflakes (unused imports/variables)
+    "UP", # pyupgrade (modern Python syntax)
+    "I", # isort (import sorting)
+    "C90", # McCabe complexity
+    "RUF", # Ruff-specific best practices
+    "PLC", # pylint (unused variables, broader scope)
+    "ARG", # flake8-unused-arguments (unused function params)
+]
+
+[lint.mccabe]
+max-complexity = 10
+
+[lint.per-file-ignores]
+"tests/unit/test_mcp_runner.py" = ["ARG001", "ARG005"]
+"test_mcp_servers.py" = ["C901"]
