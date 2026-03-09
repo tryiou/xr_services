@@ -57,9 +57,10 @@ CACHE_TTL = 3600  # Cache entries expire after 1 hour
 MAX_CACHE_ITEMS = 20000  # Maximum number of price entries to store
 COINGECKO_API = "https://api.coingecko.com/api/v3"
 REQUEST_TIMEOUT = 30  # Seconds for external API calls
-CG_RATE_DELAY = 30  # Seconds between CoinGecko API calls (rate limiting)
+CG_RATE_DELAY = 15  # Seconds between CoinGecko API calls (rate limiting)
 COINS_LIST_INTERVAL = 3600  # Refresh coins list every hour
 MAX_URL_LENGTH = 8000  # Max URL length for CoinGecko requests
+MAX_IDS_PER_REQUEST = 458  # Max coin IDs per API call (prevents truncation)
 SERVER_HOST = "0.0.0.0"
 SERVER_PORT = 8080
 LOG_FILE = os.getenv("CG_PROXY_LOG_FILE")
@@ -193,7 +194,7 @@ async def update_coingecko_coins_list(session: ClientSession) -> None:
 
 def _build_coin_chunks(coin_ids: list[str], base_url: str, max_url_length: int) -> list[list[str]]:
     """
-    Build chunks of coin IDs that fit within URL length limit.
+    Build chunks of coin IDs that fit within URL length limit and max IDs per request.
     Returns a list of chunks (each chunk is a list of coin IDs).
     """
     chunks: list[list[str]] = []
@@ -202,6 +203,9 @@ def _build_coin_chunks(coin_ids: list[str], base_url: str, max_url_length: int) 
     while i < n:
         chunk: list[str] = []
         for j in range(i, n):
+            # Enforce max IDs per request to avoid CoinGecko truncation
+            if len(chunk) >= MAX_IDS_PER_REQUEST:
+                break
             candidate = [*chunk, coin_ids[j]]
             if len(base_url.format(ids=",".join(candidate))) > max_url_length:
                 break
@@ -248,8 +252,8 @@ async def update_coingecko_coins_tickers(session: ClientSession) -> None:
                     for key, val in data.items():
                         val["timestamp"] = timestamp
                         await price_cache.set(key, val)
-                    logger.debug(f"Updated {len(data)} price entries (chunk of {len(chunk)})")
-                logger.info(f"Updated chunk {count + 1} of total {len(chunks) + 1}")
+                    # logger.info(f"Updated {len(data)} price entries (chunk size {len(chunk)})")
+                logger.info(f"Updated chunk {count + 1} of total {len(chunks) + 1} (chunk size: {len(chunk)}, data size: {len(data)})")
                 await sleep_interruptible(CG_RATE_DELAY)
                 count += 1
 
