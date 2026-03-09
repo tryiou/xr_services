@@ -12,6 +12,7 @@ import argparse
 import json
 import logging
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -65,6 +66,7 @@ DOCKER_MARKER = "#### END UTXO STACK ####"
 # Plugin configuration files
 PLUGIN_FILES = ["cg_coins_list.conf", "cg_coins_data.conf"]
 
+
 def setup_logging() -> None:
     """Configure logging for standalone script execution."""
     logging.basicConfig(
@@ -77,6 +79,7 @@ def setup_logging() -> None:
 # === Type Definitions ===
 class BackupFileInfo(TypedDict):
     """Information about a single file in a backup manifest."""
+
     path: str
     existed: bool
     action: str  # "modified" or "created"
@@ -84,6 +87,7 @@ class BackupFileInfo(TypedDict):
 
 class BackupManifest(TypedDict):
     """Complete backup manifest structure."""
+
     timestamp: str
     backup_dir: str
     target_dir: str
@@ -93,6 +97,7 @@ class BackupManifest(TypedDict):
 
 class InstallerError(Exception):
     """Base exception for installer failures."""
+
     pass
 
 
@@ -103,10 +108,11 @@ def validate_target_base(target_base: str) -> None:
     """
     if not os.path.isdir(target_base):
         raise InstallerError(f"Target directory does not exist: {target_base}")
-    
+
     docker_compose = os.path.join(target_base, "docker-compose.yml")
     if not os.path.isfile(docker_compose):
         raise InstallerError(f"docker-compose.yml not found in {target_base} (not a valid exrproxy-env)")
+
 
 # === Global Path Variables (set by initialize_paths) ===
 PLUGINS_SRC_DIR: str = ""
@@ -134,13 +140,7 @@ def initialize_paths(target_base: str) -> None:
     Args:
         target_base: Path to exrproxy-env root (e.g., ~/exrproxy-env)
     """
-    global \
-        PLUGINS_SRC_DIR, \
-        PLUGINS_DST_DIR, \
-        SCRIPTS_DIR, \
-        START_XRPROXY, \
-        START_SNODE, \
-        DOCKER_COMPOSE
+    global PLUGINS_SRC_DIR, PLUGINS_DST_DIR, SCRIPTS_DIR, START_XRPROXY, START_SNODE, DOCKER_COMPOSE
 
     # Source plugin files are in our repository's plugins/ directory
     PLUGINS_SRC_DIR = os.path.join(os.path.dirname(__file__), "plugins")
@@ -202,9 +202,7 @@ def create_backup(target_base: str, files: list[str]) -> str:
             # Track that this file will be created
             file_info["action"] = "created"
             # Create a marker for non-existing files
-            marker_path = os.path.join(
-                backup_dir, f".created_{os.path.basename(rel_path)}"
-            )
+            marker_path = os.path.join(backup_dir, f".created_{os.path.basename(rel_path)}")
             open(marker_path, "w").close()
 
         manifest["files"].append(file_info)
@@ -377,9 +375,7 @@ def list_backups(target_base: str) -> None:
                     modified = sum(1 for f in files if f.get("existed", True))
                     created_count = sum(1 for f in files if not f.get("existed", True))
                     is_latest = (
-                        os.path.islink(os.path.join(backup_root, "latest"))
-                        and os.path.realpath(os.path.join(backup_root, "latest"))
-                        == entry_path
+                        os.path.islink(os.path.join(backup_root, "latest")) and os.path.realpath(os.path.join(backup_root, "latest")) == entry_path
                     )
                     tag = tags.get(entry, "")
                     backups.append(
@@ -438,7 +434,8 @@ def _stop_docker_service_compose(compose_file: str) -> None:
     try:
         result = subprocess.run(
             ["docker-compose", "-f", compose_file, "down", "xr_service_cg_proxy"],
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
         )
         if result.returncode == 0:
             logging.info("Stopped and removed Docker container")
@@ -457,10 +454,7 @@ def _stop_docker_service_compose(compose_file: str) -> None:
 def _force_remove_docker_container() -> None:
     """Force remove any Docker container matching the service name."""
     try:
-        result = subprocess.run(
-            ["docker", "ps", "-aq", "--filter", "name=xr_service_cg_proxy"],
-            capture_output=True, text=True
-        )
+        result = subprocess.run(["docker", "ps", "-aq", "--filter", "name=xr_service_cg_proxy"], capture_output=True, text=True)
         ids = result.stdout.strip().split()
         if ids:
             subprocess.run(["docker", "rm", "-f", *ids], capture_output=True)
@@ -504,24 +498,10 @@ def uninstall(target_base: str) -> int:
         return 1
 
 
-
-
-def backup_file(path: str) -> str | None:
-    """Create a timestamped backup of the file. Returns backup path or None."""
-    if not os.path.exists(path):
-        return None
-    backup_path = f"{path}.backup_{int(time.time())}"
-    shutil.copy2(path, backup_path)
-    logging.info(f"Created backup: {backup_path}")
-    return backup_path
-
-
 def atomic_write(path: str, lines: list[str]) -> None:
     """Write to file atomically using temp file then rename."""
     dir_name = os.path.dirname(path) or "."
-    with tempfile.NamedTemporaryFile(
-        mode="w", encoding="utf-8", dir=dir_name, delete=False
-    ) as tmp:
+    with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=dir_name, delete=False) as tmp:
         tmp.writelines(lines)
         tmp.flush()
         os.fsync(tmp.fileno())
@@ -585,6 +565,69 @@ def copy_plugin_files(dry_run: bool = False) -> None:
         raise FileNotFoundError(f"Missing required plugin source files: {', '.join(missing)}")
 
 
+# === Helpers for update_start_xrproxy_rpc_config ===
+
+
+def _find_eol_markers(content: str) -> tuple[int, int]:
+    """Find the first and second 'EOL' markers. Returns (first, second) indices."""
+    first_eol = content.find("EOL")
+    if first_eol == -1:
+        raise InstallerError("No 'EOL' markers found in start-xrproxy.sh")
+    second_eol = content.find("EOL", first_eol + 1)
+    if second_eol == -1:
+        raise InstallerError("Second 'EOL' marker not found in start-xrproxy.sh")
+    return first_eol, second_eol
+
+
+def _parse_existing_rpc_settings(content: str) -> dict[tuple[str, str], str]:
+    """Parse existing RPC_* settings from file content into {(plugin, type): value}."""
+    existing_settings: dict[tuple[str, str], str] = {}
+    rpc_pattern = re.compile(r"^set-ph\s*=\s*RPC_(\w+)_(HOSTIP|PORT|USER|PASS|METHOD)=(.+)$")
+    for line in content.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        match = rpc_pattern.match(stripped)
+        if match:
+            plugin, setting_type, value = match.groups()
+            existing_settings[(plugin, setting_type)] = value.strip()
+    return existing_settings
+
+
+def _determine_plugins_to_update(existing_settings: dict[tuple[str, str], str]) -> set[str]:
+    """Determine which plugins' RPC settings differ from expected config."""
+    SETTING_TYPES = ["HOSTIP", "PORT", "USER", "PASS", "METHOD"]
+    CONFIG_KEYS = {"HOSTIP": "host", "PORT": "port", "USER": "user", "PASS": "pass", "METHOD": "method"}
+    plugins_to_update: set[str] = set()
+    for plugin in PLUGINS:
+        config = RPC_CONFIGS[plugin]
+        for st in SETTING_TYPES:
+            expected = config[CONFIG_KEYS[st]]
+            actual = existing_settings.get((plugin, st))
+            if actual != expected:
+                plugins_to_update.add(plugin)
+                break
+    return plugins_to_update
+
+
+def _build_rpc_block(plugins: set[str]) -> str:
+    """Build the RPC configuration block string for the given plugins."""
+    rpc_lines = []
+    for plugin in sorted(plugins):
+        cfg = RPC_CONFIGS[plugin]
+        rpc_lines.extend(
+            [
+                f"set-ph = RPC_{plugin}_HOSTIP={cfg['host']}\n",
+                f"set-ph = RPC_{plugin}_PORT={cfg['port']}\n",
+                f"set-ph = RPC_{plugin}_USER={cfg['user']}\n",
+                f"set-ph = RPC_{plugin}_PASS={cfg['pass']}\n",
+                f"set-ph = RPC_{plugin}_METHOD={cfg['method']}\n",
+                "\n",
+            ]
+        )
+    return "".join(rpc_lines).strip()
+
+
 def update_start_xrproxy_rpc_config(dry_run: bool = False) -> bool:
     """
     Add RPC configuration lines for our services to start-xrproxy.sh.
@@ -597,44 +640,27 @@ def update_start_xrproxy_rpc_config(dry_run: bool = False) -> bool:
     with open(START_XRPROXY) as f:
         content = f.read()
 
-    # Find second EOL
-    first_eol = content.find("EOL")
-    if first_eol == -1:
-        raise InstallerError("No 'EOL' markers found in start-xrproxy.sh")
-    second_eol = content.find("EOL", first_eol + 1)
-    if second_eol == -1:
-        raise InstallerError("Second 'EOL' marker not found in start-xrproxy.sh")
+    _, second_eol = _find_eol_markers(content)
+    existing_settings = _parse_existing_rpc_settings(content)
+    plugins = _determine_plugins_to_update(existing_settings)
 
-    # Build RPC config block
-    rpc_lines = []
-    for name, config in RPC_CONFIGS.items():
-        rpc_lines.extend(
-            [
-                f"set-ph = RPC_{name}_HOSTIP={config['host']}\n",
-                f"set-ph = RPC_{name}_PORT={config['port']}\n",
-                f"set-ph = RPC_{name}_USER={config['user']}\n",
-                f"set-ph = RPC_{name}_PASS={config['pass']}\n",
-                f"set-ph = RPC_{name}_METHOD={config['method']}\n",
-                "\n",
-            ]
-        )
-
-    rpc_block = "".join(rpc_lines)
-
-    # Check if already present
-    if rpc_block.strip() in content:
-        logging.info("RPC config already present in start-xrproxy.sh")
+    if not plugins:
+        logging.info("All RPC settings already present and correct")
         return False
 
-    # Insert with proper spacing
+    rpc_block = _build_rpc_block(plugins)
+
     if dry_run:
-        logging.info(f"[DRY RUN] Would insert RPC config into {START_XRPROXY}")
+        plugins_str = ", ".join(sorted(plugins))
+        logging.info(f"[DRY RUN] Would insert/update RPC config for: {plugins_str}")
         return True
 
-    updated = content[:second_eol] + "\n\n" + rpc_block + content[second_eol:]
-    with open(START_XRPROXY, "w") as f:
-        f.write(updated)
-    logging.info(f"Added RPC config to {START_XRPROXY}")
+    updated = content[:second_eol] + "\n\n" + rpc_block + "\n" + content[second_eol:]
+    if not updated.endswith("\n"):
+        updated += "\n"
+
+    atomic_write(START_XRPROXY, updated.splitlines(keepends=True))
+    logging.info(f"Updated RPC config for {', '.join(sorted(plugins))} in {START_XRPROXY}")
     return True
 
 
@@ -663,9 +689,7 @@ def update_start_xrproxy_plugins(dry_run: bool = False) -> bool:
                 modified = True
                 logging.info(f"Updated PLUGINS line to include {', '.join(PLUGINS)}")
             else:
-                logging.info(
-                    "PLUGINS already contains all required plugins and correct format"
-                )
+                logging.info("PLUGINS already contains all required plugins and correct format")
             break
     else:
         raise InstallerError("PLUGINS line not found in start-xrproxy.sh")
@@ -781,9 +805,7 @@ def _find_service_marker(lines: list[str], marker: str) -> int:
 
 def _generate_indented_service_yaml() -> list[str]:
     """Generate the indented YAML lines for the xr_service_cg_proxy service."""
-    service_yaml = yaml.dump(
-        DOCKER_SERVICE, default_flow_style=False, sort_keys=False
-    ).strip()
+    service_yaml = yaml.dump(DOCKER_SERVICE, default_flow_style=False, sort_keys=False).strip()
     # yaml.dump gives 2-space indent for nested dicts; need to add 2 more for top-level
     return ["  " + line if line.strip() else line for line in service_yaml.splitlines()]
 
@@ -846,9 +868,7 @@ def modify_docker_compose(dry_run: bool = False) -> bool:
 
 def parse_args() -> argparse.Namespace:
     """Parse command-line arguments."""
-    parser = argparse.ArgumentParser(
-        description="Install Coingecko proxy services into an exrproxy-env directory"
-    )
+    parser = argparse.ArgumentParser(description="Install Coingecko proxy services into an exrproxy-env directory")
     parser.add_argument(
         "--target-dir",
         help="Path to exrproxy-env root (default: parent directory of this script)",
@@ -863,9 +883,7 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Skip backup creation (use with caution - no automatic restore on failure)",
     )
-    parser.add_argument(
-        "--list-backups", action="store_true", help="List available backups and exit"
-    )
+    parser.add_argument("--list-backups", action="store_true", help="List available backups and exit")
     parser.add_argument(
         "--uninstall",
         action="store_true",
@@ -889,7 +907,8 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-# === Public API (for direct import by cgproxy-ctl) ===
+# === Public API (for direct import by cgproxy_ctl.py) ===
+
 
 def _prepare_backup(target_base: str, dry_run: bool, no_backup: bool) -> str | None:
     """Create backup if needed. Returns backup_dir or None if skipped/failed."""
@@ -973,7 +992,7 @@ def run_uninstall(target_base: str, dry_run: bool, _force: bool) -> int:
     except InstallerError as e:
         logging.error(f"Invalid target directory: {e}")
         return 1
-    
+
     initialize_paths(target_base)
     if dry_run:
         logging.warning("Dry-run not implemented for uninstall; proceeding with actual uninstall")
@@ -988,9 +1007,9 @@ def run_backup(target_base: str, tag: str | None = None, dry_run: bool = False) 
     except InstallerError as e:
         logging.error(f"Invalid target directory: {e}")
         return 1
-    
+
     initialize_paths(target_base)
-    
+
     # In dry-run mode, just show what would be backed up
     if dry_run:
         logging.info("=== DRY RUN: Backup ===")
@@ -1005,7 +1024,7 @@ def run_backup(target_base: str, tag: str | None = None, dry_run: bool = False) 
         if tag:
             logging.info(f"Backup would be tagged: {tag}")
         return 0
-    
+
     try:
         backup_dir = create_backup(target_base, FILES_TO_MODIFY)
         if tag:
@@ -1104,7 +1123,7 @@ def run_list_backups(target_base: str) -> int:
     except InstallerError as e:
         logging.error(f"Invalid target directory: {e}")
         return 1
-    
+
     initialize_paths(target_base)
     list_backups(target_base)
     return 0

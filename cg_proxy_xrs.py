@@ -28,9 +28,7 @@ from aiohttp import ClientSession, ClientTimeout, web
 
 
 # === Logging Configuration ===
-def setup_logging(
-    log_file: str | None = None, level: int = logging.INFO
-) -> logging.Logger:
+def setup_logging(log_file: str | None = None, level: int = logging.INFO) -> logging.Logger:
     """Configure root logger with console and optional file handler."""
     logger_obj = logging.getLogger("cg_proxy")
     logger_obj.setLevel(level)
@@ -55,13 +53,13 @@ def setup_logging(
 
 
 # === Configuration ===
-CACHE_TTL = 3600            # Cache entries expire after 1 hour
-MAX_CACHE_ITEMS = 10000     # Maximum number of price entries to store
+CACHE_TTL = 3600  # Cache entries expire after 1 hour
+MAX_CACHE_ITEMS = 20000  # Maximum number of price entries to store
 COINGECKO_API = "https://api.coingecko.com/api/v3"
-REQUEST_TIMEOUT = 30        # Seconds for external API calls
-CG_RATE_DELAY = 15          # Seconds between CoinGecko API calls (rate limiting)
+REQUEST_TIMEOUT = 30  # Seconds for external API calls
+CG_RATE_DELAY = 30  # Seconds between CoinGecko API calls (rate limiting)
 COINS_LIST_INTERVAL = 3600  # Refresh coins list every hour
-MAX_URL_LENGTH = 8000       # Max URL length for CoinGecko requests
+MAX_URL_LENGTH = 8000  # Max URL length for CoinGecko requests
 SERVER_HOST = "0.0.0.0"
 SERVER_PORT = 8080
 LOG_FILE = os.getenv("CG_PROXY_LOG_FILE")
@@ -72,6 +70,7 @@ logger = setup_logging(log_file=LOG_FILE, level=logging.INFO)
 # === Type Definitions ===
 class CoinGeckoCoin(TypedDict):
     """Coin data from CoinGecko coins/list endpoint."""
+
     id: str
     symbol: str
     name: str
@@ -79,6 +78,7 @@ class CoinGeckoCoin(TypedDict):
 
 class CoinGeckoPrice(TypedDict):
     """Price data from CoinGecko simple/price endpoint."""
+
     usd: float
     usd_24h_vol: float
     timestamp: float
@@ -86,6 +86,7 @@ class CoinGeckoPrice(TypedDict):
 
 class CacheEntry(TypedDict):
     """Internal cache entry structure."""
+
     value: Any
     timestamp: float
 
@@ -190,9 +191,7 @@ async def update_coingecko_coins_list(session: ClientSession) -> None:
         await sleep_interruptible(COINS_LIST_INTERVAL)
 
 
-def _build_coin_chunks(
-    coin_ids: list[str], base_url: str, max_url_length: int
-) -> list[list[str]]:
+def _build_coin_chunks(coin_ids: list[str], base_url: str, max_url_length: int) -> list[list[str]]:
     """
     Build chunks of coin IDs that fit within URL length limit.
     Returns a list of chunks (each chunk is a list of coin IDs).
@@ -223,10 +222,7 @@ async def update_coingecko_coins_tickers(session: ClientSession) -> None:
     Respects CoinGecko rate limits with a configurable delay between requests.
     """
     logger.info("Started coins tickers updater task")
-    base_url = (
-        f"{COINGECKO_API}/simple/price"
-        f"?ids={{ids}}&vs_currencies=usd&include_24hr_vol=true"
-    )
+    base_url = f"{COINGECKO_API}/simple/price?ids={{ids}}&vs_currencies=usd&include_24hr_vol=true"
     while not shutdown_flag.is_set():
         try:
             async with coins_list_lock:
@@ -241,6 +237,7 @@ async def update_coingecko_coins_tickers(session: ClientSession) -> None:
             logger.info(f"Starting ticker refresh for {len(coin_ids)} coins")
 
             chunks = _build_coin_chunks(coin_ids, base_url, MAX_URL_LENGTH)
+            count = 0
             for chunk in chunks:
                 if shutdown_flag.is_set():
                     break
@@ -252,7 +249,9 @@ async def update_coingecko_coins_tickers(session: ClientSession) -> None:
                         val["timestamp"] = timestamp
                         await price_cache.set(key, val)
                     logger.debug(f"Updated {len(data)} price entries (chunk of {len(chunk)})")
+                logger.info(f"Updated chunk {count + 1} of total {len(chunks) + 1}")
                 await sleep_interruptible(CG_RATE_DELAY)
+                count += 1
 
             logger.info("Ticker refresh cycle complete")
 
@@ -305,13 +304,15 @@ async def health_handler(_request: web.Request) -> web.Response:
         coins_available = data is not None
         coins_count = len(data) if data else 0
 
-    return web.json_response({
-        "status": "shutting_down" if shutdown_flag.is_set() else "healthy",
-        "cache_size": len(price_cache),
-        "coins_list_available": coins_available,
-        "coins_list_count": coins_count,
-        "uptime_seconds": round(time.time() - start_time, 1),
-    })
+    return web.json_response(
+        {
+            "status": "shutting_down" if shutdown_flag.is_set() else "healthy",
+            "cache_size": len(price_cache),
+            "coins_list_available": coins_available,
+            "coins_list_count": coins_count,
+            "uptime_seconds": round(time.time() - start_time, 1),
+        }
+    )
 
 
 # === Web Server ===
@@ -320,9 +321,7 @@ async def handle_request(request: web.Request) -> web.Response:
     try:
         body = await request.json()
     except Exception:
-        return web.json_response(
-            {"success": False, "reply": "Invalid JSON in request body"}, status=400
-        )
+        return web.json_response({"success": False, "reply": "Invalid JSON in request body"}, status=400)
 
     method = body.get("method")
     params = body.get("params", [])
@@ -335,21 +334,14 @@ async def handle_request(request: web.Request) -> web.Response:
         elif method == "cg_coins_data":
             # Type check params - should be list of strings
             if not isinstance(params, list):
-                return web.json_response(
-                    {"success": False, "reply": "Invalid params: must be a list"},
-                    status=400
-                )
+                return web.json_response({"success": False, "reply": "Invalid params: must be a list"}, status=400)
             result = await cg_coins_data_handler(params)
         else:
             logger.warning(f"Unknown method requested: {method!r}")
-            return web.json_response(
-                {"success": False, "reply": f"Unknown method: {method!r}"}, status=400
-            )
+            return web.json_response({"success": False, "reply": f"Unknown method: {method!r}"}, status=400)
     except Exception as e:
         logger.error(f"Handler error for method={method}: {e}", exc_info=True)
-        return web.json_response(
-            {"success": False, "reply": f"Internal server error: {e}"}, status=500
-        )
+        return web.json_response({"success": False, "reply": f"Internal server error: {e}"}, status=500)
 
     return web.json_response(result)
 
@@ -363,7 +355,15 @@ async def start_server() -> None:
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, SERVER_HOST, SERVER_PORT)
-    await site.start()
+
+    try:
+        await site.start()
+    except Exception as e:
+        logger.error(f"Failed to start server on {SERVER_HOST}:{SERVER_PORT}: {e}", exc_info=True)
+        await runner.cleanup()
+        shutdown_flag.set()
+        return
+
     logger.info(f"JSON-RPC server listening on http://{SERVER_HOST}:{SERVER_PORT}")
     logger.info(f"Health check at http://{SERVER_HOST}:{SERVER_PORT}/health")
 

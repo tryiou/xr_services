@@ -14,19 +14,19 @@ cd xr_services
 pip3 install -r requirements.txt
 
 # Install and start the service
-./cgproxy-ctl install --deploy
+./cgproxy_ctl.py install --deploy
 
 # Check status
-./cgproxy-ctl status
+./cgproxy_ctl.py status
 
 # View logs
-./cgproxy-ctl logs --follow
+./cgproxy_ctl.py logs --follow
 ```
 
 ## Prerequisites
 
 - Existing `exrproxy-env` service node setup
-- Python 3.6+ (for `cgproxy-ctl`)
+- Python 3.6+ (for `cgproxy_ctl.py`)
 - Docker & docker-compose
 - `rsync` (used for backup/restore)
 - Python dependencies: `pip3 install -r requirements.txt`
@@ -44,7 +44,7 @@ pip3 install -r requirements.txt
 
 2. **Install configuration files**:
    ```bash
-   ./cgproxy-ctl install [--target-dir PATH]
+   ./cgproxy_ctl.py install [--target-dir PATH]
    ```
    If `--target-dir` is omitted, the script will auto-detect `~/exrproxy-env`.
 
@@ -57,21 +57,21 @@ pip3 install -r requirements.txt
 
 3. **Start the service**:
    ```bash
-   ./cgproxy-ctl deploy
+   ./cgproxy_ctl.py deploy
    ```
 
    Or combine steps 2 and 3:
    ```bash
-   ./cgproxy-ctl install --deploy
+   ./cgproxy_ctl.py install --deploy
    ```
 
 4. **Verify installation**:
    ```bash
    # Check service status and health
-   ./cgproxy-ctl status
+   ./cgproxy_ctl.py status
 
    # View logs (container's internal port 8080 is not exposed to host)
-   ./cgproxy-ctl logs --follow
+   ./cgproxy_ctl.py logs --follow
 
    # Wait for cache warmup (1-2 hours), then test via XRouter
    curl -X POST http://your-node.com/xrs/cg_coins_list \
@@ -89,7 +89,7 @@ pip3 install -r requirements.txt
 | `--deploy` | Also start the container after install (install command only) |
 | `--force` | Skip confirmation prompts |
 
-**Note:** The Docker build context uses an absolute path to the repository, so you can run `cgproxy-ctl` from any location without symlinks or copying files.
+**Note:** The Docker build context uses an absolute path to the repository, so you can run `cgproxy_ctl.py` from any location without symlinks or copying files.
 
 ## Configuration
 
@@ -107,7 +107,7 @@ help=Usage string...  # Help text shown to users
 
 After editing these files, rebuild/restart the container:
 ```bash
-./cgproxy-ctl rebuild
+./cgproxy_ctl.py rebuild
 ```
 
 ### Service Constants
@@ -115,7 +115,7 @@ After editing these files, rebuild/restart the container:
 To modify cache TTL, rate limits, or other runtime parameters, edit the constants in `cg_proxy_xrs.py` and rebuild the Docker image:
 
 ```bash
-./cgproxy-ctl rebuild
+./cgproxy_ctl.py rebuild
 ```
 
 Key constants:
@@ -200,28 +200,28 @@ docker-compose -f ~/exrproxy-env/docker-compose.yml exec xr_service_cg_proxy \
 
 ```bash
 # First-time install and start
-./cgproxy-ctl install --deploy
+./cgproxy_ctl.py install --deploy
 
 # Create a tagged backup before making changes
-./cgproxy-ctl backup "before-customization"
+./cgproxy_ctl.py backup "before-customization"
 
 # Check service health
-./cgproxy-ctl status
+./cgproxy_ctl.py status
 
 # View recent logs
-./cgproxy-ctl logs --follow
+./cgproxy_ctl.py logs --follow
 
 # Restore from a specific backup
-./cgproxy-ctl restore "pre-update"
+./cgproxy_ctl.py restore "pre-update"
 
 # Update from git and reinstall if needed
-./cgproxy-ctl update
+./cgproxy_ctl.py update
 
 # Run diagnostics
-./cgproxy-ctl check
+./cgproxy_ctl.py check
 
 # Uninstall completely
-./cgproxy-ctl uninstall
+./cgproxy_ctl.py uninstall
 ```
 
 ## Backup & Restore
@@ -229,15 +229,15 @@ docker-compose -f ~/exrproxy-env/docker-compose.yml exec xr_service_cg_proxy \
 - **Automatic backup** is created before any modification in `~/exrproxy-env/.backups/<timestamp>/`
 - **On failure**, the installer automatically restores from the backup
 - **Backups are kept** after successful install (safe to delete manually)
-- **Tagging**: Use `./cgproxy-ctl backup "my-label"` to add a human-readable tag
-- **List backups**: `./cgproxy-ctl list-backups`
-- **Restore by tag**: `./cgproxy-ctl restore "my-label"`
+- **Tagging**: Use `./cgproxy_ctl.py backup "my-label"` to add a human-readable tag
+- **List backups**: `./cgproxy_ctl.py list-backups`
+- **Restore by tag**: `./cgproxy_ctl.py restore "my-label"`
 - **Manual restore** (if needed):
   ```bash
   cp ~/exrproxy-env/.backups/latest/scripts/*.sh ~/exrproxy-env/scripts/
   cp ~/exrproxy-env/.backups/latest/docker-compose.yml ~/exrproxy-env/
   rm -f ~/exrproxy-env/plugins/cg_coins_*.conf
-  ./cgproxy-ctl undeploy 2>/dev/null || true
+  ./cgproxy_ctl.py undeploy 2>/dev/null || true
   ```
 
 ## Uninstall
@@ -245,7 +245,7 @@ docker-compose -f ~/exrproxy-env/docker-compose.yml exec xr_service_cg_proxy \
 ### Automatic (Recommended)
 
 ```bash
-./cgproxy-ctl uninstall
+./cgproxy_ctl.py uninstall
 ```
 
 This will:
@@ -273,7 +273,7 @@ This will:
 
 5. Stop and remove the container:
    ```bash
-   ./cgproxy-ctl undeploy
+   ./cgproxy_ctl.py undeploy
    ```
 
 6. Optionally remove Docker image:
@@ -287,7 +287,7 @@ This will:
 
 The cache needs 15-30min to warm up on first run. Check logs:
 ```bash
-./cgproxy-ctl logs --follow
+./cgproxy_ctl.py logs --follow
 ```
 
 ### "coin not in cache"
@@ -311,8 +311,8 @@ Run the installer as the same user that owns `~/exrproxy-env/`. Ensure write per
 ### Restore from backup
 
 ```bash
-./cgproxy-ctl restore <timestamp>
-# Then reinstall if needed: ./cgproxy-ctl install
+./cgproxy_ctl.py restore <timestamp>
+# Then reinstall if needed: ./cgproxy_ctl.py install
 ```
 
 ## Technical Details
@@ -346,15 +346,15 @@ Client → XRouter (port 80) → xr_service_cg_proxy:8080 → CoinGecko API
 
 ### Build Context
 
-The Docker build context uses an absolute path to the repository directory, allowing you to run `cgproxy-ctl` from any location without needing to clone the repository inside `exrproxy-env`.
+The Docker build context uses an absolute path to the repository directory, allowing you to run `cgproxy_ctl.py` from any location without needing to clone the repository inside `exrproxy-env`.
 
 ## Multi-Node Deployment
 
 Use `--target-dir` to deploy the same repository to multiple nodes:
 
 ```bash
-./cgproxy-ctl install --target-dir ~/node1/exrproxy-env --deploy
-./cgproxy-ctl install --target-dir ~/node2/exrproxy-env --deploy
+./cgproxy_ctl.py install --target-dir ~/node1/exrproxy-env --deploy
+./cgproxy_ctl.py install --target-dir ~/node2/exrproxy-env --deploy
 ```
 
 ## Support
